@@ -1,0 +1,114 @@
+import logging
+import pickle
+
+from sklearn.metrics import f1_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier
+
+from settings import DB_CONFIG_FILENAME
+import database
+
+
+def create_pickle_file(table_name, output_filename, db_config_filename=DB_CONFIG_FILENAME):
+    """
+    Creates a pickle file from a table in the database
+    :param table_name:
+    :param output_filename:
+    :param db_config_filename:
+    :return:
+    """
+    db = database.DatabaseUtility(db_config_filename)
+    logging.info('Connecting to database')
+    db.establish_connection()
+    logging.info('Connected to database')
+    df = db.select_all_from_table(table_name)
+    pickled_df = pickle.dumps(df)
+    db.close_connection()
+    with(open(output_filename, 'wb')) as f:
+        f.write(pickled_df)
+
+
+def build_test_and_train_data(df, term_id_list):
+    logging.info("Building test and train data")
+    logging.info(f"df shape: {df.shape}")
+    train_data = df[~df['term_id'].isin(term_id_list)]
+    test_data = df[df['term_id'].isin(term_id_list)]
+    return train_data, test_data
+
+def gather_f1_measures(model, test_data):
+    results = {'course_id': [], 'f1_measure': [], 'student_cnt': []}
+    grouped_by_crs = test_data.groupby('course_id')
+    for crs_id, crs_df in grouped_by_crs:
+        outcome = crs_df['FAIL']
+        pred = model.predict(crs_df.drop(columns=['user_id', 'course_id', 'user_state', 'FAIL']))
+        f1_measure = f1_score(outcome, pred)
+        logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {f1_measure}")
+        results['course_id'].append(crs_id)
+        results['f1_measure'].append(f1_measure)
+        results['student_cnt'].append(len(crs_df))
+    return results
+
+
+def run_naive_bayes(train_data, test_data):
+    train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
+    x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
+
+    logging.info("\n\nFitting Naive Bayes model")
+    nb_model = GaussianNB()
+    nb_model.fit(x_train, y_train)
+
+    return gather_f1_measures(nb_model, test_data)
+
+
+def run_decision_tree(train_data, test_data):
+    train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
+    x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
+
+    param_grid = {
+        'criterion': ['gini', 'entropy'],
+        'splitter': ['best', 'random'],
+        'max_depth': [None, 10, 20, 30, 40, 50],
+        'min_samples_split': [2, 5, 10],
+        'min_samples_leaf': [1, 2, 4]
+    }
+
+    logging.info("\n\nHypertuning Decision Tree model")
+    tree = DecisionTreeClassifier()
+    grid_search = GridSearchCV(tree, param_grid, cv=5, verbose=1, n_jobs=-1)
+    grid_search.fit(x_train, y_train)
+
+    logging.info(f"Best parameters: {grid_search.best_params_}")
+    best_tree = grid_search.best_estimator_
+
+    return gather_f1_measures(best_tree, test_data)
+
+
+def run_neural_network(train_data, test_data):
+    train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
+    x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
+
+    logging.info("\n\nFitting Neural Network model")
+    # Scaling the data
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(x_train)
+
+    # Hyperparameter Tuning
+    param_grid = {
+        'hidden_layer_sizes': [(50,), (100,), (50, 50)],
+        'activation': ['tanh', 'relu'],
+        'solver': ['sgd', 'adam'],
+        'alpha': [0.0001, 0.001, 0.01],
+        'learning_rate': ['constant', 'adaptive']
+    }
+
+    mlp = MLPClassifier(max_iter=500, random_state=42)
+    grid_search = GridSearchCV(mlp, param_grid, cv=3, n_jobs=-1, verbose=1)
+    grid_search.fit(X_train_scaled, y_train)
+
+    # Train the model with the best hyperparameters
+    best_mlp = grid_search.best_estimator_
+
+    return gather_f1_measures(best_mlp, test_data)

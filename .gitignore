@@ -1,0 +1,8 @@
+/output/
+*.json
+scrap*
+*.log
+Utilities/__pycache__/
+.idea/
+*.csv
+*.pkl
