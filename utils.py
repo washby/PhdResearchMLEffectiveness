@@ -1,7 +1,7 @@
 import logging
 import pickle
 
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, accuracy_score
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
@@ -22,10 +22,11 @@ def create_pickle_file(table_name, output_filename, db_config_filename=DB_CONFIG
     :return:
     """
     db = database.DatabaseUtility(db_config_filename)
-    logging.info('Connecting to database')
+    logging.info(f'Connecting to database for {output_filename}')
     db.establish_connection()
     logging.info('Connected to database')
     df = db.select_all_from_table(table_name)
+    logging.info(f"for {output_filename} the df shape is {len(df)}")
     pickled_df = pickle.dumps(df)
     db.close_connection()
     with(open(output_filename, 'wb')) as f:
@@ -40,7 +41,7 @@ def build_test_and_train_data(df, term_id_list):
     return train_data, test_data
 
 def gather_f1_measures(model, test_data, scaler=None):
-    results = {'course_id': [], 'f1_measure': [], 'student_cnt': []}
+    results = {'course_id': [], 'f1_measure': [], 'student_cnt': [], 'accuracy': []}
     grouped_by_crs = test_data.groupby('course_id')
     for crs_id, crs_df in grouped_by_crs:
         outcome = crs_df['FAIL']
@@ -49,10 +50,12 @@ def gather_f1_measures(model, test_data, scaler=None):
             input_data = scaler.fit_transform(input_data)
         pred = model.predict(input_data)
         f1_measure = f1_score(outcome, pred)
+        accuracy = accuracy_score(outcome, pred)
         logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {f1_measure}")
         results['course_id'].append(crs_id)
         results['f1_measure'].append(f1_measure)
         results['student_cnt'].append(len(crs_df))
+        results['accuracy'].append(accuracy)
     return results
 
 
@@ -112,11 +115,12 @@ def run_neural_network(train_data, test_data):
     }
 
     mlp = MLPClassifier(random_state=42)
-    grid_search = GridSearchCV(mlp, param_grid, cv=5, n_jobs=-1, verbose=1)
-    grid_search.fit(X_train_scaled, y_train)
+    # model_search = GridSearchCV(mlp, param_grid, cv=5, n_jobs=-1, verbose=1)
+    model_search = RandomizedSearchCV(mlp, param_grid, cv=5, n_jobs=-1, verbose=1)
+    model_search.fit(X_train_scaled, y_train)
 
     # Train the model with the best hyperparameters
-    best_mlp = grid_search.best_estimator_
+    best_mlp = model_search.best_estimator_
 
     return gather_f1_measures(best_mlp, test_data, scaler=scaler)
 
@@ -140,10 +144,11 @@ def run_SVM(train_data, test_data):
     }
 
     svm = SVC()
-    grid_search = GridSearchCV(svm, param_grid, cv=2, n_jobs=-1, verbose=1)
-    grid_search.fit(X_train_scaled, y_train)
+    # model_search = GridSearchCV(svm, param_grid, cv=5, n_jobs=-1, verbose=1)
+    model_search = RandomizedSearchCV(svm, param_grid, cv=5, n_jobs=-1, verbose=1)
+    model_search.fit(X_train_scaled, y_train)
 
     # Train the model with the best hyperparameters
-    best_svm = grid_search.best_estimator_
+    best_svm = model_search.best_estimator_
 
     return gather_f1_measures(best_svm, test_data, scaler=scaler)

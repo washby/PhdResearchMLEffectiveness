@@ -17,7 +17,7 @@ class DatabaseUtility:
         self.__server = self.__config["server_name"]
         self.__database = self.__config['database']
         self.__username = self.__config['username']
-        self.__table_name = self.__config['table_name']
+        # self.__table_name = self.__config['table_name']
         self.__cnxn = None
         self.__cursor = None
         self.__engine = None
