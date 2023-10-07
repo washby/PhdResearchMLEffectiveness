@@ -38,12 +38,15 @@ def build_test_and_train_data(df, term_id_list):
     test_data = df[df['term_id'].isin(term_id_list)]
     return train_data, test_data
 
-def gather_f1_measures(model, test_data):
+def gather_f1_measures(model, test_data, drop_headers=False):
     results = {'course_id': [], 'f1_measure': [], 'student_cnt': []}
     grouped_by_crs = test_data.groupby('course_id')
     for crs_id, crs_df in grouped_by_crs:
         outcome = crs_df['FAIL']
-        pred = model.predict(crs_df.drop(columns=['user_id', 'course_id', 'user_state', 'FAIL']))
+        input_data = crs_df.drop(columns=['user_id', 'course_id', 'user_state', 'FAIL'])
+        if drop_headers:
+            input_data = input_data.values
+        pred = model.predict(input_data)
         f1_measure = f1_score(outcome, pred)
         logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {f1_measure}")
         results['course_id'].append(crs_id)
@@ -98,17 +101,20 @@ def run_neural_network(train_data, test_data):
     # Hyperparameter Tuning
     param_grid = {
         'hidden_layer_sizes': [(50,), (100,), (50, 50)],
-        'activation': ['tanh', 'relu'],
-        'solver': ['sgd', 'adam'],
+        'activation': ['tanh', 'relu', 'logistic', 'identity'],
+        'solver': ['sgd', 'adam', 'lbfgs'],
         'alpha': [0.0001, 0.001, 0.01],
-        'learning_rate': ['constant', 'adaptive']
+        'learning_rate': ['constant', 'adaptive', 'invscaling'],
+        'max_iter': [500, 1000, 1500],
+        'shuffle': [True, False],
+        'tol': [0.0001, 0.001, 0.01]
     }
 
-    mlp = MLPClassifier(max_iter=500, random_state=42)
-    grid_search = GridSearchCV(mlp, param_grid, cv=3, n_jobs=-1, verbose=1)
+    mlp = MLPClassifier(random_state=42)
+    grid_search = GridSearchCV(mlp, param_grid, cv=5, n_jobs=-1, verbose=1)
     grid_search.fit(X_train_scaled, y_train)
 
     # Train the model with the best hyperparameters
     best_mlp = grid_search.best_estimator_
 
-    return gather_f1_measures(best_mlp, test_data)
+    return gather_f1_measures(best_mlp, test_data, drop_headers=True)
