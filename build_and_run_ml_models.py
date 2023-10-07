@@ -26,6 +26,13 @@ if __name__ == '__main__':
     logging.info("train_data shape: {}".format(train_data.shape))
     logging.info("test_data shape: {}".format(test_data.shape))
 
+
+    logging.info("Beginning SVM")
+    svm_results = utils.run_SVM(deepcopy(train_data), deepcopy(test_data))
+    logging.info("Writing SVM results to file")
+    pd.DataFrame(svm_results).to_csv('nn_results.csv', index=False)
+    exit(-42)
+
     logging.info("Beginning Naive Bayes")
     nb_results = utils.run_naive_bayes(deepcopy(train_data), deepcopy(test_data))
     logging.info("Writing Naive Bayes results to file")

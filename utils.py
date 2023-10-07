@@ -2,10 +2,11 @@ import logging
 import pickle
 
 from sklearn.metrics import f1_score
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
 from settings import DB_CONFIG_FILENAME
@@ -38,14 +39,14 @@ def build_test_and_train_data(df, term_id_list):
     test_data = df[df['term_id'].isin(term_id_list)]
     return train_data, test_data
 
-def gather_f1_measures(model, test_data, drop_headers=False):
+def gather_f1_measures(model, test_data, scaler=None):
     results = {'course_id': [], 'f1_measure': [], 'student_cnt': []}
     grouped_by_crs = test_data.groupby('course_id')
     for crs_id, crs_df in grouped_by_crs:
         outcome = crs_df['FAIL']
         input_data = crs_df.drop(columns=['user_id', 'course_id', 'user_state', 'FAIL'])
-        if drop_headers:
-            input_data = input_data.values
+        if scaler:
+            input_data = scaler.fit_transform(input_data)
         pred = model.predict(input_data)
         f1_measure = f1_score(outcome, pred)
         logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {f1_measure}")
@@ -117,4 +118,32 @@ def run_neural_network(train_data, test_data):
     # Train the model with the best hyperparameters
     best_mlp = grid_search.best_estimator_
 
-    return gather_f1_measures(best_mlp, test_data, drop_headers=True)
+    return gather_f1_measures(best_mlp, test_data, scaler=scaler)
+
+
+def run_SVM(train_data, test_data):
+    train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
+    x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
+
+    logging.info("\n\nFitting SVM model")
+    # Scaling the data
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(x_train)
+
+    # Hyperparameter Tuning
+    param_grid = {
+        'C': [0.1, 1, 10, 100],
+        'kernel': ['linear', 'rbf', 'poly', 'sigmoid'],
+        'gamma': ['scale', 'auto'],
+        'degree': [2, 3, 4],  # only relevant for 'poly' kernel
+        'shrinking': [True, False]
+    }
+
+    svm = SVC()
+    grid_search = GridSearchCV(svm, param_grid, cv=2, n_jobs=-1, verbose=1)
+    grid_search.fit(X_train_scaled, y_train)
+
+    # Train the model with the best hyperparameters
+    best_svm = grid_search.best_estimator_
+
+    return gather_f1_measures(best_svm, test_data, scaler=scaler)
