@@ -39,4 +39,4 @@ if __name__ == '__main__':
     logging.info("Beginning Neural Network")
     nn_results = utils.run_neural_network(deepcopy(train_data), deepcopy(test_data))
     logging.info("Writing Neural Network results to file")
-    pd.DataFrame(nn_results.items(), columns=['course_id', 'accuracy']).to_csv('nn_results.csv', index=False)
+    pd.DataFrame(nn_results).to_csv('nn_results.csv', index=False)
