@@ -96,6 +96,7 @@ def run_decision_tree(train_data, test_data):
 
 
 def run_neural_network(train_data, test_data):
+    train_data = train_data.sample(n=40000)
     train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
     x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
 
@@ -129,7 +130,7 @@ def run_neural_network(train_data, test_data):
 
 
 def run_SVM(train_data, test_data):
-    train_data = train_data.sample(n=5000)
+    train_data = train_data.sample(n=40000)
     train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
     x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
 
