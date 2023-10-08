@@ -10,8 +10,9 @@ import datetime
 
 if __name__ == '__main__':
 
+    date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                        filename=fr'logs\ml_{datetime.datetime.now().replace(":", "-")}.log', filemode='w')
+                        filename=fr'logs\ml_{date_str}.log', filemode='w')
 
     header_list = ["user_id", "course_id", "total_activity_time", "user_state", "term_id", "crs_count", "avg_crs_level",
                    "avg_crs_credits", "grade", "adjusted_grade", "submission_day_diff", "pg_level", "pg_normed",
