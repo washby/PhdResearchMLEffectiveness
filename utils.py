@@ -49,7 +49,7 @@ def gather_f1_measures(model, test_data, scaler=None):
         if scaler:
             input_data = scaler.fit_transform(input_data)
         pred = model.predict(input_data)
-        f1_measure = f1_score(outcome, pred)
+        f1_measure = f1_score(outcome, pred, zero_division=0.0)
         accuracy = accuracy_score(outcome, pred)
         logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {f1_measure}")
         results['course_id'].append(crs_id)
@@ -66,6 +66,7 @@ def run_naive_bayes(train_data, test_data):
     logging.info("\n\nFitting Naive Bayes model")
     nb_model = GaussianNB()
     nb_model.fit(x_train, y_train)
+    pickle.dump(nb_model, open('nb_model.pkl', 'wb'))
 
     return gather_f1_measures(nb_model, test_data)
 
@@ -89,6 +90,7 @@ def run_decision_tree(train_data, test_data):
 
     logging.info(f"Best parameters: {grid_search.best_params_}")
     best_tree = grid_search.best_estimator_
+    pickle.dump(best_tree, open('best_tree.pkl', 'wb'))
 
     return gather_f1_measures(best_tree, test_data)
 
@@ -121,11 +123,13 @@ def run_neural_network(train_data, test_data):
 
     # Train the model with the best hyperparameters
     best_mlp = model_search.best_estimator_
+    pickle.dump(best_mlp, open('best_mlp.pkl', 'wb'))
 
     return gather_f1_measures(best_mlp, test_data, scaler=scaler)
 
 
 def run_SVM(train_data, test_data):
+    train_data = train_data.sample(n=40000)
     train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
     x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
 
@@ -144,11 +148,13 @@ def run_SVM(train_data, test_data):
     }
 
     svm = SVC()
-    # model_search = GridSearchCV(svm, param_grid, cv=5, n_jobs=-1, verbose=1)
-    model_search = RandomizedSearchCV(svm, param_grid, cv=5, n_jobs=-1, verbose=1)
+    # model_search = GridSearchCV(svm, param_grid, cv=3, n_jobs=-1, verbose=1)
+    model_search = RandomizedSearchCV(svm, param_grid, cv=5, n_jobs=-1, verbose=1, n_iter=25)
     model_search.fit(X_train_scaled, y_train)
 
     # Train the model with the best hyperparameters
     best_svm = model_search.best_estimator_
-
+    pickle.dump(best_svm, open('best_svm.pkl', 'wb'))
+    # best_svm = SVC(C=100, degree=2, gamma='auto', kernel='poly', shrinking=True, probability=False)
+    # best_svm.fit(X_train_scaled, y_train)
     return gather_f1_measures(best_svm, test_data, scaler=scaler)
