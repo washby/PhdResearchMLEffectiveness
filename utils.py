@@ -118,7 +118,7 @@ def run_neural_network(train_data, test_data):
 
     mlp = MLPClassifier(random_state=42)
     # model_search = GridSearchCV(mlp, param_grid, cv=5, n_jobs=-1, verbose=1)
-    model_search = RandomizedSearchCV(mlp, param_grid, cv=3, n_jobs=-1, verbose=1, n_iter=20)
+    model_search = RandomizedSearchCV(mlp, param_grid, cv=3, n_jobs=-1, verbose=1, n_iter=25)
     model_search.fit(X_train_scaled, y_train)
 
     # Train the model with the best hyperparameters
