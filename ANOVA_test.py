@@ -15,15 +15,19 @@ if __name__ == "__main__":
     nn_f1 = nn_df['f1_measure'].tolist()
     svm_f1 = svm_df['f1_measure'].tolist()
 
-    base_line = [0.5] * len(nb_f1)
-
-    group_names = ['base_line', 'nb_f1', 'tree_f1', 'nn_f1', 'svm_f1']
-    groups = [base_line, nb_f1, tree_f1, nn_f1, svm_f1]
-
     print(f'nb_f1: {len(nb_f1)}')
     print(f'tree_f1: {len(tree_f1)}')
     print(f'nn_f1: {len(nn_f1)}')
     print(f'svm_f1: {len(svm_f1)}')
+    print(f'nb_f1 avg: {np.mean(nb_f1)}')
+    print(f'tree_f1 avg: {np.mean(tree_f1)}')
+    print(f'nn_f1 avg: {np.mean(nn_f1)}')
+    print(f'svm_f1 avg: {np.mean(svm_f1)}')
+
+    base_line = [0.5] * len(nb_f1)
+
+    group_names = ['base_line', 'nb_f1', 'tree_f1', 'nn_f1', 'svm_f1']
+    groups = [base_line, nb_f1, tree_f1, nn_f1, svm_f1]
 
     f_stat, p_value = f_oneway(*groups)
 

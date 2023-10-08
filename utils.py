@@ -129,7 +129,7 @@ def run_neural_network(train_data, test_data):
 
 
 def run_SVM(train_data, test_data):
-    train_data = train_data.sample(n=40000)
+    train_data = train_data.sample(n=5000)
     train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
     x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
 
@@ -149,7 +149,7 @@ def run_SVM(train_data, test_data):
 
     svm = SVC()
     # model_search = GridSearchCV(svm, param_grid, cv=3, n_jobs=-1, verbose=1)
-    model_search = RandomizedSearchCV(svm, param_grid, cv=5, n_jobs=-1, verbose=1, n_iter=25)
+    model_search = RandomizedSearchCV(svm, param_grid, cv=2, n_jobs=-1, verbose=1, n_iter=50)
     model_search.fit(X_train_scaled, y_train)
 
     # Train the model with the best hyperparameters
