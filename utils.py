@@ -1,7 +1,9 @@
+import json
 import logging
 import pickle
 
-from sklearn.metrics import f1_score, accuracy_score
+import pandas as pd
+from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
@@ -41,37 +43,65 @@ def build_test_and_train_data(df, term_id_list):
     return train_data, test_data
 
 def gather_f1_measures(model, test_data, scaler=None):
-    results = {'course_id': [], 'f1_measure': [], 'student_cnt': [], 'accuracy': []}
+    results = {'course_id': [], 'f1_measure': [], 'student_cnt': [], 'accuracy': [],
+               'tn': [], 'fp': [], 'fn': [], 'tp': [], 'my_f1_measure': [], 'my_accuracy': []}
     grouped_by_crs = test_data.groupby('course_id')
+    # confusion = None
     for crs_id, crs_df in grouped_by_crs:
         outcome = crs_df['FAIL']
         input_data = crs_df.drop(columns=['user_id', 'course_id', 'user_state', 'FAIL'])
         if scaler:
             input_data = scaler.fit_transform(input_data)
         pred = model.predict(input_data)
-        f1_measure = f1_score(outcome, pred, zero_division=0.0)
+
         accuracy = accuracy_score(outcome, pred)
-        logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {f1_measure}")
+        confusion = confusion_matrix(outcome, pred)
+        if len(confusion) == 1:
+            fp, fn = 0, 0
+            if pred[0]:
+                tp = confusion[0][0]
+                tn = 0
+            else:
+                tn = confusion[0][0]
+                tp = 0
+        else:
+            tn, fp, fn, tp = confusion.ravel()
+
+        # Because FAIL and PASS were inverted in the database, we need to invert the confusion matrix
+        tp, fn, fp, tn = tn, fp, fn, tp
+        precision = 0 if tp + fp ==0 else tp / (tp + fp)
+        recall = 0 if tp + fn == 0 else tp / (tp + fn)
+        my_f1_measure = 0 if precision + recall == 0 else 2 * (precision * recall) / (precision + recall)
+        f1_measure = f1_score(outcome, pred)
+        logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {my_f1_measure}")
         results['course_id'].append(crs_id)
         results['f1_measure'].append(f1_measure)
+        results['my_f1_measure'].append(my_f1_measure)
         results['student_cnt'].append(len(crs_df))
         results['accuracy'].append(accuracy)
+        results['tn'].append(tn)
+        results['fp'].append(fp)
+        results['fn'].append(fn)
+        results['tp'].append(tp)
+        results['my_accuracy'].append((tp + tn) / (tp + tn + fp + fn))
+    # if return_confusion:
+    #     return results, confusion
     return results
 
 
-def run_naive_bayes(train_data, test_data):
+def build_and_run_naive_bayes(train_data, test_data):
     train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
     x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
 
     logging.info("\n\nFitting Naive Bayes model")
     nb_model = GaussianNB()
     nb_model.fit(x_train, y_train)
-    pickle.dump(nb_model, open('nb_model.pkl', 'wb'))
+    pickle.dump(nb_model, open('best_nb.pkl', 'wb'))
 
     return gather_f1_measures(nb_model, test_data)
 
 
-def run_decision_tree(train_data, test_data):
+def build_and_run_decision_tree(train_data, test_data):
     train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
     x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
 
@@ -95,7 +125,7 @@ def run_decision_tree(train_data, test_data):
     return gather_f1_measures(best_tree, test_data)
 
 
-def run_neural_network(train_data, test_data):
+def build_and_run_neural_network(train_data, test_data):
     train_data = train_data.sample(n=40000)
     train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
     x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
@@ -129,7 +159,7 @@ def run_neural_network(train_data, test_data):
     return gather_f1_measures(best_mlp, test_data, scaler=scaler)
 
 
-def run_SVM(train_data, test_data):
+def build_and_run_SVM(train_data, test_data):
     train_data = train_data.sample(n=40000)
     train_data = train_data.drop(columns=['user_id', 'course_id', 'user_state'])
     x_train, y_train = train_data.drop('FAIL', axis=1), train_data['FAIL']
@@ -159,3 +189,32 @@ def run_SVM(train_data, test_data):
     # best_svm = SVC(C=100, degree=2, gamma='auto', kernel='poly', shrinking=True, probability=False)
     # best_svm.fit(X_train_scaled, y_train)
     return gather_f1_measures(best_svm, test_data, scaler=scaler)
+
+
+def build_all_campus_dataframe(data_config_file='data_config.json'):
+    header_list = ["user_id", "course_id", "total_activity_time", "user_state", "term_id", "crs_count", "avg_crs_level",
+                   "avg_crs_credits", "grade", "adjusted_grade", "submission_day_diff", "pg_level", "pg_normed",
+                   "pt_level", "pt_normed", "late_percent", "on_time_percent", "missing_percent", "FAIL", "PASS"]
+    with open(data_config_file) as f:
+        data_config = json.load(f)
+
+    all_train_data = pd.DataFrame()
+    all_test_data = pd.DataFrame()
+
+    for campus in data_config:
+        with(open(f'{campus["name"]}.pkl', 'rb')) as f:
+            df = pickle.load(f)
+
+        df = [list(item) for item in df]
+        df = pd.DataFrame(df, columns=header_list)
+
+        train_data, test_data = build_test_and_train_data(df, campus['term_ids'])
+
+        logging.info(f'{campus["name"]} has {len(train_data)} train records and {len(test_data)} test records')
+        all_train_data = pd.concat([all_train_data, train_data], ignore_index=True)
+        all_test_data = pd.concat([all_test_data, test_data], ignore_index=True)
+
+    all_train_data.drop(columns=['PASS'], inplace=True)
+    all_test_data.drop(columns=['PASS'], inplace=True)
+
+    return all_train_data, all_test_data

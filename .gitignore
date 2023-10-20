@@ -4,5 +4,6 @@ scrap*
 *.log
 Utilities/__pycache__/
 .idea/
+models/
 *.csv
 *.pkl

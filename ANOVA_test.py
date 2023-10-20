@@ -28,6 +28,26 @@ if __name__ == "__main__":
 
     group_names = ['base_line', 'nb_f1', 'tree_f1', 'nn_f1', 'svm_f1']
     groups = [base_line, nb_f1, tree_f1, nn_f1, svm_f1]
+    groups_dict = dict(zip(group_names, groups))
+
+    # 1. Compute the grand mean
+    all_data = np.concatenate(groups)
+    grand_mean = np.mean(all_data)
+
+    # 2. Compute SS_total
+    SS_total = np.sum((all_data - grand_mean) ** 2)
+
+    # 3. Compute SS_within
+    SS_within = sum([(len(group) - 1) * np.var(group, ddof=1) for group in groups])
+
+    # 4. Compute SS_between
+    SS_between = SS_total - SS_within
+
+    # 5. Calculate Cohen's f
+    f_effect_size = np.sqrt(SS_between / SS_within)
+
+    print("Cohen's f effect size:", f_effect_size)
+
 
     f_stat, p_value = f_oneway(*groups)
 
