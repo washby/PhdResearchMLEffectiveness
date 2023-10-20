@@ -44,7 +44,7 @@ def build_test_and_train_data(df, term_id_list):
 
 def gather_f1_measures(model, test_data, scaler=None):
     results = {'course_id': [], 'f1_measure': [], 'student_cnt': [], 'accuracy': [],
-               'tn': [], 'fp': [], 'fn': [], 'tp': [], 'my_f1_measure': [], 'my_accuracy': []}
+               'tn': [], 'fp': [], 'fn': [], 'tp': []}
     grouped_by_crs = test_data.groupby('course_id')
     # confusion = None
     for crs_id, crs_df in grouped_by_crs:
@@ -67,23 +67,16 @@ def gather_f1_measures(model, test_data, scaler=None):
         else:
             tn, fp, fn, tp = confusion.ravel()
 
-        # Because FAIL and PASS were inverted in the database, we need to invert the confusion matrix
-        tp, fn, fp, tn = tn, fp, fn, tp
-        precision = 0 if tp + fp ==0 else tp / (tp + fp)
-        recall = 0 if tp + fn == 0 else tp / (tp + fn)
-        my_f1_measure = 0 if precision + recall == 0 else 2 * (precision * recall) / (precision + recall)
-        f1_measure = f1_score(outcome, pred)
-        logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {my_f1_measure}")
+        f1_measure = f1_score(outcome, pred, zero_division=0.0)
+        logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {f1_measure}")
         results['course_id'].append(crs_id)
         results['f1_measure'].append(f1_measure)
-        results['my_f1_measure'].append(my_f1_measure)
         results['student_cnt'].append(len(crs_df))
         results['accuracy'].append(accuracy)
         results['tn'].append(tn)
         results['fp'].append(fp)
         results['fn'].append(fn)
         results['tp'].append(tp)
-        results['my_accuracy'].append((tp + tn) / (tp + tn + fp + fn))
     # if return_confusion:
     #     return results, confusion
     return results
@@ -207,7 +200,7 @@ def build_all_campus_dataframe(data_config_file='data_config.json'):
 
         df = [list(item) for item in df]
         df = pd.DataFrame(df, columns=header_list)
-
+        df['PASS'], df['FAIL'] = df['FAIL'], df['PASS']
         train_data, test_data = build_test_and_train_data(df, campus['term_ids'])
 
         logging.info(f'{campus["name"]} has {len(train_data)} train records and {len(test_data)} test records')

@@ -32,6 +32,8 @@ if __name__ == '__main__':
     logging.info("Writing Decision Trees results to file")
     pd.DataFrame(tree_results).to_csv('tree_results.csv', index=False)
 
+    exit(-24)
+
     logging.info("Beginning Neural Network")
     nn_results = utils.build_and_run_neural_network(deepcopy(all_train_data), deepcopy(all_test_data))
     logging.info("Writing Neural Network results to file")
