@@ -3,14 +3,13 @@ import logging
 import pickle
 
 import pandas as pd
-from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
+from sklearn.metrics import f1_score, accuracy_score, confusion_matrix, matthews_corrcoef
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-
 from settings import DB_CONFIG_FILENAME
 import database
 
@@ -42,11 +41,11 @@ def build_test_and_train_data(df, term_id_list):
     test_data = df[df['term_id'].isin(term_id_list)]
     return train_data, test_data
 
-def gather_f1_measures(model, test_data, scaler=None):
+def gather_measurements(model, test_data, scaler=None):
     results = {'course_id': [], 'f1_measure': [], 'student_cnt': [], 'accuracy': [],
-               'tn': [], 'fp': [], 'fn': [], 'tp': []}
+               'tn': [], 'fp': [], 'fn': [], 'tp': [], 'mcc': []}
     grouped_by_crs = test_data.groupby('course_id')
-    # confusion = None
+
     for crs_id, crs_df in grouped_by_crs:
         outcome = crs_df['FAIL']
         input_data = crs_df.drop(columns=['user_id', 'course_id', 'user_state', 'FAIL'])
@@ -69,6 +68,7 @@ def gather_f1_measures(model, test_data, scaler=None):
 
         f1_measure = f1_score(outcome, pred, zero_division=0.0)
         logging.info(f"Course ID {crs_id} has {len(crs_df)} students and f1_measure: {f1_measure}")
+        results['mcc'].append(matthews_corrcoef(outcome, pred))
         results['course_id'].append(crs_id)
         results['f1_measure'].append(f1_measure)
         results['student_cnt'].append(len(crs_df))
@@ -77,8 +77,7 @@ def gather_f1_measures(model, test_data, scaler=None):
         results['fp'].append(fp)
         results['fn'].append(fn)
         results['tp'].append(tp)
-    # if return_confusion:
-    #     return results, confusion
+
     return results
 
 
@@ -91,7 +90,7 @@ def build_and_run_naive_bayes(train_data, test_data):
     nb_model.fit(x_train, y_train)
     pickle.dump(nb_model, open('best_nb.pkl', 'wb'))
 
-    return gather_f1_measures(nb_model, test_data)
+    return gather_measurements(nb_model, test_data)
 
 
 def build_and_run_decision_tree(train_data, test_data):
@@ -115,7 +114,7 @@ def build_and_run_decision_tree(train_data, test_data):
     best_tree = grid_search.best_estimator_
     pickle.dump(best_tree, open('best_tree.pkl', 'wb'))
 
-    return gather_f1_measures(best_tree, test_data)
+    return gather_measurements(best_tree, test_data)
 
 
 def build_and_run_neural_network(train_data, test_data):
@@ -149,7 +148,7 @@ def build_and_run_neural_network(train_data, test_data):
     best_mlp = model_search.best_estimator_
     pickle.dump(best_mlp, open('best_mlp.pkl', 'wb'))
 
-    return gather_f1_measures(best_mlp, test_data, scaler=scaler)
+    return gather_measurements(best_mlp, test_data, scaler=scaler)
 
 
 def build_and_run_SVM(train_data, test_data):
@@ -181,7 +180,7 @@ def build_and_run_SVM(train_data, test_data):
     pickle.dump(best_svm, open('best_svm.pkl', 'wb'))
     # best_svm = SVC(C=100, degree=2, gamma='auto', kernel='poly', shrinking=True, probability=False)
     # best_svm.fit(X_train_scaled, y_train)
-    return gather_f1_measures(best_svm, test_data, scaler=scaler)
+    return gather_measurements(best_svm, test_data, scaler=scaler)
 
 
 def build_all_campus_dataframe(data_config_file='data_config.json'):
@@ -200,7 +199,7 @@ def build_all_campus_dataframe(data_config_file='data_config.json'):
 
         df = [list(item) for item in df]
         df = pd.DataFrame(df, columns=header_list)
-        df['PASS'], df['FAIL'] = df['FAIL'], df['PASS']
+        df['PASS'], df['FAIL'] = df['FAIL'], df['PASS'] # Because the data was coded backwards
         train_data, test_data = build_test_and_train_data(df, campus['term_ids'])
 
         logging.info(f'{campus["name"]} has {len(train_data)} train records and {len(test_data)} test records')

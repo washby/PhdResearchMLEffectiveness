@@ -5,5 +5,7 @@ scrap*
 Utilities/__pycache__/
 .idea/
 models/
+results/
+stats_files
 *.csv
 *.pkl

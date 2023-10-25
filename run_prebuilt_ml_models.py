@@ -7,7 +7,7 @@ from os.path import join
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-from utils import build_all_campus_dataframe, gather_f1_measures
+from utils import build_all_campus_dataframe, gather_measurements
 
 if __name__ == '__main__':
     date_str = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -36,6 +36,6 @@ if __name__ == '__main__':
         print(name)
         pass_scaler = scaler if needs_scaler else None
         pred_data = deepcopy(all_test_data)
-        results = gather_f1_measures(model, pred_data, scaler=pass_scaler)
+        results = gather_measurements(model, pred_data, scaler=pass_scaler)
         file_out = join('results', f'{name}_results.csv')
         pd.DataFrame(results).to_csv(file_out, index=False)
